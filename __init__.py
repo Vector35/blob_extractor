@@ -1,7 +1,10 @@
-from binaryninja import *
+"""Binary Ninja plugin for identifying and extracting files from container formats using Unblob
+"""
 
-def do_nothing(bv):
-	show_message_box("Do Nothing", "Congratulations! You have successfully done nothing.\n\n" +
-					 "Pat yourself on the back.", MessageBoxButtonSet.OKButtonSet, MessageBoxIcon.ErrorIcon)
+from binaryninja import core_ui_enabled
+from binaryninjaui import Sidebar
 
-PluginCommand.register("Useless Plugin", "Basically does nothing", do_nothing)
+from .sidebar import BlobExtractorSidebarType
+
+if core_ui_enabled() is True:
+    Sidebar.addSidebarWidgetType(BlobExtractorSidebarType())
