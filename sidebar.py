@@ -1,12 +1,15 @@
 """Blob Extractor sidebar user interface
 """
 
+import platform
+import subprocess
 from os import path, listdir, walk, sep
 from pathlib import Path
-from shutil import rmtree
+from shutil import rmtree, copyfile
 from math import ceil
+from binaryninja import log_alert, get_form_input, SaveFileNameField
 
-from PySide6.QtCore import Qt, QModelIndex
+from PySide6.QtCore import Qt, QModelIndex, QPoint
 from PySide6.QtWidgets import (
     QVBoxLayout,
     QLabel,
@@ -17,7 +20,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTreeView,
-    QCheckBox,
+    QMenu,
 )
 from PySide6.QtGui import QImage, QFont, QStandardItem, QStandardItemModel
 from binaryninja import BinaryView
@@ -30,9 +33,10 @@ from binaryninjaui import (
     getThemeColor,
     ThemeColor,
     getMonospaceFont,
+    UIContext,
 )
 
-from .tasks import FindBlobsTask, ExtractFilesTask
+from .tasks import FindBlobsTask, ExtractFilesTask, import_files_into_project
 
 # Use Qt conventions for variable and function names
 # pylint: disable=C0103
@@ -48,11 +52,15 @@ class TreeModel(QStandardItemModel):
 class TreeView(QTreeView):
     """Tree view for displaying results"""
 
-    def __init__(self, headers: list, parent=None) -> None:
+    def __init__(self, headers: list, parent=None, multiSelect: bool = False) -> None:
         super(TreeView, self).__init__(parent)
         self.model = TreeModel(headers, parent)
         self.setEditTriggers(QTreeView.NoEditTriggers)
-        self.setSelectionMode(QTreeView.NoSelection)
+        if multiSelect:
+            self.setSelectionMode(QTreeView.MultiSelection)
+        else:
+            self.setSelectionMode(QTreeView.NoSelection)
+
         self.setModel(self.model)
 
     def getModel(self):
@@ -85,16 +93,6 @@ class IntegerTreeItem(QStandardItem):
         else:
             self.setText(f"0x{addr:x}")
         self.setFont(font)
-
-
-class FormCheckBox(QCheckBox):
-    """Styled QCheckBox"""
-
-    def __init__(self, font: QFont, text: str, checked: bool, parent=None) -> None:
-        super(FormCheckBox, self).__init__(parent)
-        self.setFont(font)
-        self.setText(text)
-        self.setChecked(checked)
 
 
 class IntegerTableItem(QTableWidgetItem):
@@ -163,23 +161,130 @@ class DataTable(QTableWidget):
 class ExtractResultsFrame(QFrame):
     """Frame for displaying extraction results"""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, data: BinaryView, parent=None) -> None:
         super(ExtractResultsFrame, self).__init__(parent)
         self.lastTmpDir = None
         self.fileReports = None
         self.parents = None
-        self.extracted = False
+        self.running = False
+        self.extractButton = None
+        self.data = data
+        self.isProject = True if data.project else False
 
-        layout = QVBoxLayout()
+        layout = QGridLayout()
         layout.setSpacing(0)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        self.filesTree = TreeView(["Name", "Type", "Size"], self)
+        self.filesTree = TreeView(["Name", "Type", "Size"], parent=self, multiSelect=self.isProject)
+        self.filesTree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.filesTree.customContextMenuRequested.connect(self.contextMenu)
+        self.filesTree.doubleClicked.connect(self.openFileExternally)
+        self.filesTree.setExpandsOnDoubleClick(False)
         self.filesTreeModel = self.filesTree.getModel()
-        layout.addWidget(self.filesTree)
-
+        layout.addWidget(HeaderLabel("Extracted Files"), 0, 0, 1, 5)
+        layout.addWidget(self.filesTree, 1, 0, 1, 5)
         self.setLayout(layout)
-        self.hide()
+
+    def contextMenu(self, pos: QPoint) -> None:
+        """Context menu for the extracted files tree view"""
+
+        menu = QMenu()
+        menu.addAction("Open file", lambda: self.openFileExternally(self.filesTree.indexAt(pos)))
+        menu.addAction("Open containing folder", lambda: self.openContainingFolder(self.filesTree.indexAt(pos)))
+        menu.addAction("Save file as...", lambda: self.saveFileAs(self.filesTree.indexAt(pos)))
+        if self.isProject:
+            menu.addAction("Import selected files", self.importFiles)
+            menu.addAction("Select all", lambda: self.filesTree.selectAll())
+            menu.addAction("Unselect all", lambda: self.filesTree.clearSelection())
+
+        menu.exec_(self.filesTree.mapToGlobal(pos))
+
+    def importFiles(self) -> None:
+        """Import the selected files into the project"""
+
+        selectedFiles = []
+        selectedIndexes = self.filesTree.selectedIndexes()
+        for parentDir, parentItem in self.parents.items():
+            for i in range(parentItem.rowCount()):
+                child = parentItem.child(i)
+                if child.index() in selectedIndexes:
+                    filepath = path.realpath(path.join(parentDir, child.text()))
+                    if path.isdir(filepath) or path.islink(filepath):
+                        continue
+
+                    selectedFiles.append(self.fileReports[filepath])
+
+        if not selectedFiles:
+            log_alert("No files selected")
+            return
+
+        skipped, imported = import_files_into_project(selectedFiles, self.data.project)
+        if skipped == imported == 0:
+            log_alert("No files selected for import")
+            return
+
+        log_alert(f"({imported}) new files imported; ({skipped}) files previously imported")
+        self.filesTree.clearSelection()
+
+    def getFullFilepathFromIndex(self, index: QModelIndex) -> str:
+        """Get the full file path from the QModelIndex"""
+
+        for parentDir, parentItem in self.parents.items():
+            for i in range(parentItem.rowCount()):
+                child = parentItem.child(i)
+                if child.index() == index:
+                    return path.realpath(path.join(parentDir, child.text()))
+
+        return None
+
+    def openFile(self, filepath: str) -> None:
+        """Open the file externally"""
+
+        command = ["xdg-open", filepath]
+        if platform.system() == "Darwin":
+            if path.isdir(filepath):
+                command = ["open", filepath]
+            else:
+                command = ["open", "-t", filepath]
+
+        try:
+            subprocess.call(command)
+        except (FileNotFoundError, PermissionError) as ex:
+            log_alert(f"Could not open file: {ex}")
+
+    def saveFileAs(self, index: QModelIndex) -> None:
+        """Save the selected file to disk"""
+
+        filepath = self.getFullFilepathFromIndex(index)
+        if not filepath:
+            return
+
+        outpathField = SaveFileNameField("Save file as...")
+        if not get_form_input([outpathField], "Save file as..."):
+            return
+
+        outpath = outpathField.result
+        copyfile(filepath, outpath)
+        log_alert(f"File saved to: {outpath}")
+
+    def openContainingFolder(self, index: QModelIndex) -> None:
+        """Open the containing folder of the selected file"""
+
+        filepath = self.getFullFilepathFromIndex(index)
+        if not filepath:
+            return
+
+        folder = path.dirname(filepath)
+        self.openFile(folder)
+
+    def openFileExternally(self, index: QModelIndex) -> None:
+        """Open the selected file in the user's default editor"""
+
+        filepath = self.getFullFilepathFromIndex(index)
+        if not filepath:
+            return
+
+        self.openFile(filepath)
 
     def getParentItem(self, _path, parents):
         """Get the parent item for the supplied file path"""
@@ -190,10 +295,14 @@ class ExtractResultsFrame(QFrame):
 
         grandParentPath, parentName = _path.rsplit(sep, 1)
         parentItem = TextTreeItem(getMonospaceFont(self), parentName)
+        parentItem.setSelectable(False)
         parents[_path] = parentItem
         if path.isdir(_path) and list(x for x in Path(_path).iterdir() if x.is_file()):  # skip empty directories
             dirItem = TextTreeItem(getMonospaceFont(self), "directory")
-            self.getParentItem(grandParentPath, parents).appendRow([parentItem, dirItem])
+            dirItem.setSelectable(False)
+            blankItem = QStandardItem("")
+            blankItem.setSelectable(False)
+            self.getParentItem(grandParentPath, parents).appendRow([parentItem, dirItem, blankItem])
 
         return parentItem
 
@@ -209,8 +318,9 @@ class ExtractResultsFrame(QFrame):
     def handleExtractResults(self, fileReports: list, tempDir: str) -> None:
         """Handle the unblob extraction file reports and build directory tree"""
 
-        self.filesTreeModel.clear()
+        self.filesTreeModel.removeRows(0, self.filesTreeModel.rowCount())
         if not fileReports:
+            self.extractButton.setEnabled(True)
             return
 
         self.fileReports = self.fileReportsToDict(fileReports)
@@ -243,8 +353,6 @@ class ExtractResultsFrame(QFrame):
 
                 sr, fmr, _, _ = reports
                 name = TextTreeItem(getMonospaceFont(self), _file, color=True)
-                name.setCheckable(True)
-                name.setCheckState(Qt.Unchecked)
                 magic = TextTreeItem(getMonospaceFont(self), fmr.magic)
                 size = TextTreeItem(getMonospaceFont(self), f"{str(ceil(sr.size / 1024))} KB")
                 parent.appendRow([name, magic, size])
@@ -253,15 +361,17 @@ class ExtractResultsFrame(QFrame):
         self.filesTree.resizeColumnToContents(0)
         self.filesTree.setColumnWidth(1, 200)
         self.parents = parents
-        self.extracted = True
+        self.running = False
         self.show()
 
-    def runFileExtraction(self, data: BinaryView) -> None:
+    def runFileExtraction(self, extractButton: QPushButton, data: BinaryView) -> None:
         """Run the file extraction task"""
 
-        if self.extracted:
+        if self.running:
             return
 
+        self.running = True
+        self.extractButton = extractButton
         ExtractFilesTask(data, self.handleExtractResults).start()
 
 class ExtractWidget(QWidget):
@@ -274,21 +384,22 @@ class ExtractWidget(QWidget):
         self.extractButton = QPushButton("Extract")
         self.extractButton.clicked.connect(self.handleExtractButton)
         self.statusLabel = StatusLabel("")
-        self.resultsFrame = ExtractResultsFrame()
+        self.resultsFrame = ExtractResultsFrame(data)
 
         layout = QGridLayout()
         layout.setSpacing(0)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        layout.addWidget(self.extractButton, 1, 0, Qt.AlignLeft)
-        layout.addWidget(self.statusLabel, 1, 1, 1, 4, Qt.AlignLeft)
-        layout.addWidget(self.resultsFrame, 2, 0)
+        layout.addWidget(self.resultsFrame, 1, 0, 1, 5)
+        layout.addWidget(self.extractButton, 2, 0, Qt.AlignLeft)
+        layout.addWidget(self.statusLabel, 2, 1, 1, 4, Qt.AlignLeft)
         self.setLayout(layout)
 
     def handleExtractButton(self) -> None:
         """Extract button clicked"""
 
-        self.resultsFrame.runFileExtraction(self.data)
+        self.extractButton.setEnabled(False)
+        self.resultsFrame.runFileExtraction(self.extractButton, self.data)
 
 
 class BlobsWidget(QWidget):
@@ -309,6 +420,7 @@ class BlobsWidget(QWidget):
 
         self.blobsTable = DataTable(["Start", "End", "Type", "Encrypted"])
         layout.addWidget(self.blobsTable, 2, 0, 1, 5)
+        self.blobsTable.doubleClicked.connect(self.navigateToBlob)
 
         self.extractWidget = ExtractWidget(data)
         self.extractWidget.hide()  # Hide until we have identified blobs (implying the binary is a container)
@@ -317,6 +429,16 @@ class BlobsWidget(QWidget):
         self.setLayout(layout)
         if data:
             self.runFindBlobsTask()
+
+    def navigateToBlob(self, index: QModelIndex) -> None:
+        """Navigate to the blob in the binary view"""
+
+        column = index.column()
+        if column > 1:
+            column = 0
+
+        start_addr = int(self.blobsTable.item(index.row(), column).text(), 16)
+        UIContext.activeContext().getCurrentViewFrame().navigate(self.data, start_addr)
 
     def handleBlobIdResults(self, results: list) -> None:
         """Handle results from the blob extraction task"""
@@ -333,13 +455,18 @@ class BlobsWidget(QWidget):
 
         self.statusLabel.setText(f"Found ({len(results)}) interesting blob{("s" if len(results) > 1 else "")}")
         self.blobsTable.setRowCount(len(results))
+        extractable = False
         for i, report in enumerate(results):
             self.blobsTable.setItem(i, 0, IntegerTableItem(getMonospaceFont(self), baseaddr + report.start_offset))
             self.blobsTable.setItem(i, 1, IntegerTableItem(getMonospaceFont(self), baseaddr + report.end_offset))
             self.blobsTable.setItem(i, 2, TextTableItem(getMonospaceFont(self), report.handler_name))
             self.blobsTable.setItem(i, 3, TextTableItem(getMonospaceFont(self), "Yes" if report.is_encrypted else "No"))
 
-        self.extractWidget.show()
+            if (report.handler_name != "elf32" and report.start_offset != 0) and report.handler_name == "padding":
+                extractable = True
+
+        if extractable:
+            self.extractWidget.show()
 
     def runFindBlobsTask(self) -> None:
         """Run the blob extraction task and display the results"""
