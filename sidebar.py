@@ -1,5 +1,4 @@
-"""Blob Extractor sidebar user interface
-"""
+"""Blob Extractor sidebar user interface"""
 
 import platform
 import subprocess
@@ -38,14 +37,14 @@ from binaryninjaui import (
 
 from .tasks import FindBlobsTask, ExtractFilesTask, import_files_into_project
 
-# Use Qt conventions for variable and function names
+# Use Qt style / convention for variable and function names
 # pylint: disable=C0103
 
 class TreeModel(QStandardItemModel):
     """Model for tree views"""
 
     def __init__(self, headers: list, parent=None) -> None:
-        super(TreeModel, self).__init__(parent)
+        QStandardItemModel.__init__(self, parent)
         self.setHorizontalHeaderLabels(headers)
 
 
@@ -53,7 +52,7 @@ class TreeView(QTreeView):
     """Tree view for displaying results"""
 
     def __init__(self, headers: list, parent=None, multiSelect: bool = False) -> None:
-        super(TreeView, self).__init__(parent)
+        QTreeView.__init__(self, parent)
         self.model = TreeModel(headers, parent)
         self.setEditTriggers(QTreeView.NoEditTriggers)
         if multiSelect:
@@ -72,8 +71,8 @@ class TreeView(QTreeView):
 class TextTreeItem(QStandardItem):
     """Styled QStandardItem for tree views"""
 
-    def __init__(self, font: QFont, text: str, color: bool = False, parent=None) -> None:
-        super(TextTreeItem, self).__init__(parent)
+    def __init__(self, font: QFont, text: str, color: bool = False) -> None:
+        QStandardItem.__init__(self)
         self.setEditable(False)
         self.setText(text)
         self.setFont(font)
@@ -81,25 +80,11 @@ class TextTreeItem(QStandardItem):
             self.setForeground(getThemeColor(ThemeColor.AlphanumericHighlightColor))
 
 
-class IntegerTreeItem(QStandardItem):
-    """Styled QStandardItem for text in tree views"""
-
-    def __init__(self, font: QFont, addr: int, isDecimal: bool = False) -> None:
-        super(IntegerTreeItem, self).__init__()
-        color = getThemeColor(ThemeColor.AddressColor)
-        self.setForeground(color)
-        if isDecimal:
-            self.setText(str(addr))
-        else:
-            self.setText(f"0x{addr:x}")
-        self.setFont(font)
-
-
 class IntegerTableItem(QTableWidgetItem):
     """Styled QTableWidgetItem for integer values"""
 
     def __init__(self, font: QFont, addr: int, isDecimal: bool = False) -> None:
-        super(IntegerTableItem, self).__init__()
+        QTableWidgetItem.__init__(self)
         color = getThemeColor(ThemeColor.AddressColor)
         self.setForeground(color)
         if isDecimal:
@@ -113,7 +98,7 @@ class TextTableItem(QTableWidgetItem):
     """Styled QTableWidgetItem for text"""
 
     def __init__(self, font: QFont, text: str, highlight: bool = False) -> None:
-        super(TextTableItem, self).__init__()
+        QTableWidgetItem.__init__(self)
         if highlight:
             color = getThemeColor(ThemeColor.AlphanumericHighlightColor)
             self.setForeground(color)
@@ -124,9 +109,10 @@ class TextTableItem(QTableWidgetItem):
 class StatusLabel(QLabel):
     """Styled label for status messages"""
 
-    def __init__(self, text: str, parent=None) -> None:
-        super(StatusLabel, self).__init__(parent)
-        color = getThemeColor(ThemeColor.AlphanumericHighlightColor)
+    def __init__(self, text: str, parent=None, color = None) -> None:
+        QLabel.__init__(self, parent)
+        if color is None:
+            color = getThemeColor(ThemeColor.AlphanumericHighlightColor)
         self.setStyleSheet(f"color: {color.name()}")
         self.setText(text)
         self.setAlignment(Qt.AlignTop)
@@ -136,7 +122,7 @@ class HeaderLabel(QLabel):
     """Styled label for widget headers"""
 
     def __init__(self, text: str, parent=None) -> None:
-        super(HeaderLabel, self).__init__(parent)
+        QLabel.__init__(self, parent)
         self.setStyleSheet("font-size: 14px")
         self.setText(text)
         self.setAlignment(Qt.AlignLeft)
@@ -147,7 +133,7 @@ class DataTable(QTableWidget):
     """Styled table widget for displaying data"""
 
     def __init__(self, headers, parent=None) -> None:
-        super(DataTable, self).__init__(parent)
+        QTableWidget.__init__(self, parent)
         self.setColumnCount(len(headers))
         self.setHorizontalHeaderLabels(headers)
         self.horizontalHeader().setDefaultAlignment(Qt.AlignLeft)
@@ -162,12 +148,12 @@ class ExtractResultsFrame(QFrame):
     """Frame for displaying extraction results"""
 
     def __init__(self, data: BinaryView, parent=None) -> None:
-        super(ExtractResultsFrame, self).__init__(parent)
-        self.lastTmpDir = None
+        QFrame.__init__(self, parent)
+        self.tmpDir = None
         self.fileReports = None
         self.parents = None
         self.running = False
-        self.extractButton = None
+        self.taskCompleteCallback = None
         self.data = data
         self.isProject = True if data.project else False
 
@@ -177,31 +163,34 @@ class ExtractResultsFrame(QFrame):
 
         self.filesTree = TreeView(["Name", "Type", "Size"], parent=self, multiSelect=self.isProject)
         self.filesTree.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.filesTree.customContextMenuRequested.connect(self.contextMenu)
-        self.filesTree.doubleClicked.connect(self.openFileExternally)
+        self.filesTree.customContextMenuRequested.connect(self._contextMenu)
+        self.filesTree.doubleClicked.connect(self._openFileExternally)
         self.filesTree.setExpandsOnDoubleClick(False)
         self.filesTreeModel = self.filesTree.getModel()
-        layout.addWidget(HeaderLabel("Extracted Files"), 0, 0, 1, 5)
+        layout.addWidget(HeaderLabel("Extracted Files", parent=self), 0, 0, 1, 5)
         layout.addWidget(self.filesTree, 1, 0, 1, 5)
         self.setLayout(layout)
 
-    def contextMenu(self, pos: QPoint) -> None:
-        """Context menu for the extracted files tree view"""
+    def __del__(self) -> None:
+        if self.tmpDir is None:
+            return
 
+        rmtree(self.tmpDir)
+        self.tmpDir = None
+
+    def _contextMenu(self, pos: QPoint) -> None:
         menu = QMenu()
-        menu.addAction("Open file", lambda: self.openFileExternally(self.filesTree.indexAt(pos)))
-        menu.addAction("Open containing folder", lambda: self.openContainingFolder(self.filesTree.indexAt(pos)))
-        menu.addAction("Save file as...", lambda: self.saveFileAs(self.filesTree.indexAt(pos)))
+        menu.addAction("Open file", lambda: self._openFileExternally(self.filesTree.indexAt(pos)))
+        menu.addAction("Open containing folder", lambda: self._openContainingFolder(self.filesTree.indexAt(pos)))
+        menu.addAction("Save file as...", lambda: self._saveFileAs(self.filesTree.indexAt(pos)))
         if self.isProject:
-            menu.addAction("Import selected files", self.importFiles)
+            menu.addAction("Import selected files", self._importFiles)
             menu.addAction("Select all", lambda: self.filesTree.selectAll())
             menu.addAction("Unselect all", lambda: self.filesTree.clearSelection())
 
         menu.exec_(self.filesTree.mapToGlobal(pos))
 
-    def importFiles(self) -> None:
-        """Import the selected files into the project"""
-
+    def _importFiles(self) -> None:
         selectedFiles = []
         selectedIndexes = self.filesTree.selectedIndexes()
         for parentDir, parentItem in self.parents.items():
@@ -226,9 +215,7 @@ class ExtractResultsFrame(QFrame):
         log_alert(f"({imported}) new files imported; ({skipped}) files previously imported")
         self.filesTree.clearSelection()
 
-    def getFullFilepathFromIndex(self, index: QModelIndex) -> str:
-        """Get the full file path from the QModelIndex"""
-
+    def _getFullPathFromIndex(self, index: QModelIndex) -> str:
         for parentDir, parentItem in self.parents.items():
             for i in range(parentItem.rowCount()):
                 child = parentItem.child(i)
@@ -237,9 +224,7 @@ class ExtractResultsFrame(QFrame):
 
         return None
 
-    def openFile(self, filepath: str) -> None:
-        """Open the file externally"""
-
+    def _openFile(self, filepath: str) -> None:
         command = ["xdg-open", filepath]
         if platform.system() == "Darwin":
             if path.isdir(filepath):
@@ -252,10 +237,8 @@ class ExtractResultsFrame(QFrame):
         except (FileNotFoundError, PermissionError) as ex:
             log_alert(f"Could not open file: {ex}")
 
-    def saveFileAs(self, index: QModelIndex) -> None:
-        """Save the selected file to disk"""
-
-        filepath = self.getFullFilepathFromIndex(index)
+    def _saveFileAs(self, index: QModelIndex) -> None:
+        filepath = self._getFullPathFromIndex(index)
         if not filepath:
             return
 
@@ -267,28 +250,22 @@ class ExtractResultsFrame(QFrame):
         copyfile(filepath, outpath)
         log_alert(f"File saved to: {outpath}")
 
-    def openContainingFolder(self, index: QModelIndex) -> None:
-        """Open the containing folder of the selected file"""
-
-        filepath = self.getFullFilepathFromIndex(index)
+    def _openContainingFolder(self, index: QModelIndex) -> None:
+        filepath = self._getFullPathFromIndex(index)
         if not filepath:
             return
 
         folder = path.dirname(filepath)
-        self.openFile(folder)
+        self._openFile(folder)
 
-    def openFileExternally(self, index: QModelIndex) -> None:
-        """Open the selected file in the user's default editor"""
-
-        filepath = self.getFullFilepathFromIndex(index)
+    def _openFileExternally(self, index: QModelIndex) -> None:
+        filepath = self._getFullPathFromIndex(index)
         if not filepath:
             return
 
-        self.openFile(filepath)
+        self._openFile(filepath)
 
-    def getParentItem(self, _path, parents):
-        """Get the parent item for the supplied file path"""
-
+    def _getParentItem(self, _path, parents):
         parent = parents.get(_path)
         if parent:
             return parent
@@ -302,33 +279,27 @@ class ExtractResultsFrame(QFrame):
             dirItem.setSelectable(False)
             blankItem = QStandardItem("")
             blankItem.setSelectable(False)
-            self.getParentItem(grandParentPath, parents).appendRow([parentItem, dirItem, blankItem])
+            self._getParentItem(grandParentPath, parents).appendRow([parentItem, dirItem, blankItem])
 
         return parentItem
 
-    def fileReportsToDict(self, fileReports: list) -> dict:
-        """Convert the file reports tuple to a dictionary"""
-
+    def _fileReportsToDict(self, fileReports: list) -> dict:
         fileDict = {}
         for reports in fileReports:
             fileDict[path.realpath(reports[0].path)] = reports
 
         return fileDict
 
-    def handleExtractResults(self, fileReports: list, tempDir: str) -> None:
-        """Handle the unblob extraction file reports and build directory tree"""
-
+    def _handleExtractResults(self, fileReports: list, tempDir: str) -> None:
         self.filesTreeModel.removeRows(0, self.filesTreeModel.rowCount())
         if not fileReports:
-            self.extractButton.setEnabled(True)
+            self.taskCompleteCallback(0)
             return
 
-        self.fileReports = self.fileReportsToDict(fileReports)
-        if self.lastTmpDir:
-            rmtree(self.lastTmpDir)
-        self.lastTmpDir = tempDir
+        self.fileReports = self._fileReportsToDict(fileReports)
+        self.tmpDir = tempDir
 
-        # If extraction occured with unblob, there will be a nested _extract subdir
+        # Unblob creates a nested *_extract subdir
         extractDir = tempDir
         for _file in listdir(extractDir):
             if path.isdir(path.join(extractDir, _file)) and _file.endswith("_extract"):
@@ -344,7 +315,7 @@ class ExtractResultsFrame(QFrame):
 
          # Populate the tree with information on the extracted files
         for root, _, files in walk(extractDir):
-            parent = self.getParentItem(root, parents)
+            parent = self._getParentItem(root, parents)
             for _file in files:
                 fullpath = path.realpath(path.join(root, _file))
                 reports = self.fileReports.get(fullpath)
@@ -363,50 +334,58 @@ class ExtractResultsFrame(QFrame):
         self.parents = parents
         self.running = False
         self.show()
+        self.taskCompleteCallback(len(fileReports))
 
-    def runFileExtraction(self, extractButton: QPushButton, data: BinaryView) -> None:
+    def runFileExtraction(self, taskCompleteCallback: callable, data: BinaryView) -> None:
         """Run the file extraction task"""
 
         if self.running:
             return
 
         self.running = True
-        self.extractButton = extractButton
-        ExtractFilesTask(data, self.handleExtractResults).start()
+        self.taskCompleteCallback = taskCompleteCallback
+        ExtractFilesTask(data, self._handleExtractResults).start()
 
 class ExtractWidget(QWidget):
     """Qt widget for extracting files with unblob"""
 
     def __init__(self, data: BinaryView, parent=None) -> None:
-        super(ExtractWidget, self).__init__(parent)
+        QWidget.__init__(self, parent)
         self.data = data
 
-        self.extractButton = QPushButton("Extract")
-        self.extractButton.clicked.connect(self.handleExtractButton)
-        self.statusLabel = StatusLabel("")
-        self.resultsFrame = ExtractResultsFrame(data)
+        self.extractButton = QPushButton("Start", parent=self)
+        self.extractButton.clicked.connect(self._handleExtractButton)
+        self.statusLabel = StatusLabel("Click \"Start\" to extract files", color=getThemeColor(ThemeColor.CommentColor), parent=self)
+        self.resultsFrame = ExtractResultsFrame(data, parent=self)
 
         layout = QGridLayout()
         layout.setSpacing(0)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        layout.addWidget(self.resultsFrame, 1, 0, 1, 5)
-        layout.addWidget(self.extractButton, 2, 0, Qt.AlignLeft)
-        layout.addWidget(self.statusLabel, 2, 1, 1, 4, Qt.AlignLeft)
+        layout.addWidget(self.resultsFrame, 0, 0, 1, 5)
+        layout.addWidget(self.extractButton, 1, 0, Qt.AlignLeft)
+        layout.addWidget(self.statusLabel, 1, 1, 1, 4, Qt.AlignRight | Qt.AlignVCenter)
         self.setLayout(layout)
 
-    def handleExtractButton(self) -> None:
-        """Extract button clicked"""
+    def _taskCompleteCallback(self, filecnt: int) -> None:
+        if filecnt > 0:
+            self.statusLabel.setText(f"Extracted ({filecnt}) files")
+        else:
+            self.statusLabel("No files could be extracted (see the Binary Ninja log)")
+            self.extractButton.setEnabled(True) # Re-enable, in case the user wants to try again
 
+
+    def _handleExtractButton(self) -> None:
         self.extractButton.setEnabled(False)
-        self.resultsFrame.runFileExtraction(self.extractButton, self.data)
+        self.statusLabel.setText("Running...")
+        self.resultsFrame.runFileExtraction(self._taskCompleteCallback, self.data)
 
 
 class BlobsWidget(QWidget):
     """Qt widget for displaying interesting blobs in the container binary"""
 
     def __init__(self, data: BinaryView, parent=None) -> None:
-        super(BlobsWidget, self).__init__(parent)
+        QWidget.__init__(self, parent)
         self.data = data
         self.running = False
 
@@ -414,15 +393,17 @@ class BlobsWidget(QWidget):
         layout.setSpacing(0)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        layout.addWidget(HeaderLabel("Embedded Blobs"), 0, 0, 1, 5)
-        self.statusLabel = StatusLabel("")
+        layout.addWidget(HeaderLabel("Embedded Blobs", parent=self), 0, 0, 1, 5)
+        self.statusLabel = StatusLabel("", parent=self)
         layout.addWidget(self.statusLabel, 1, 0, 1, 5)
 
-        self.blobsTable = DataTable(["Start", "End", "Type", "Encrypted"])
+        self.blobsTable = DataTable(["Start", "End", "Type", "Encrypted"], parent=self)
+        self.blobsTable.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.blobsTable.customContextMenuRequested.connect(self._contextMenu)
         layout.addWidget(self.blobsTable, 2, 0, 1, 5)
-        self.blobsTable.doubleClicked.connect(self.navigateToBlob)
+        self.blobsTable.doubleClicked.connect(self._navigateToBlob)
 
-        self.extractWidget = ExtractWidget(data)
+        self.extractWidget = ExtractWidget(data, parent=self)
         self.extractWidget.hide()  # Hide until we have identified blobs (implying the binary is a container)
         layout.addWidget(self.extractWidget, 3, 0, 1, 5)
 
@@ -430,9 +411,39 @@ class BlobsWidget(QWidget):
         if data:
             self.runFindBlobsTask()
 
-    def navigateToBlob(self, index: QModelIndex) -> None:
-        """Navigate to the blob in the binary view"""
+    def _saveBlobAs(self, index: QModelIndex) -> None:
+        """Carve the blob and save it to disk"""
 
+        baseaddr = 0
+        if self.data.segments:
+            baseaddr = self.data.segments[0].start
+
+        start_offset = int(self.blobsTable.item(index.row(), 0).text(), 16) - baseaddr
+        end_offset = int(self.blobsTable.item(index.row(), 1).text(), 16) - baseaddr
+        size = end_offset - start_offset
+
+        outpathField = SaveFileNameField("Save blob as...")
+        if not get_form_input([outpathField], "Save blob as..."):
+            return
+
+        outpath = outpathField.result
+        raw = self.data.get_view_of_type("Raw")
+        if not raw:
+            log_alert("Failed to carve blob (no raw view!?)")
+            return
+
+        data = raw.read(start_offset, size)
+        with open(outpath, "wb") as f:
+            f.write(data)
+
+        log_alert(f"Blob saved to: {outpath}")
+
+    def _contextMenu(self, pos: QPoint) -> None:
+        menu = QMenu()
+        menu.addAction("Save blob as...", lambda: self._saveBlobAs(self.blobsTable.indexAt(pos)))
+        menu.exec_(self.blobsTable.mapToGlobal(pos))
+
+    def _navigateToBlob(self, index: QModelIndex) -> None:
         column = index.column()
         if column > 1:
             column = 0
@@ -440,9 +451,7 @@ class BlobsWidget(QWidget):
         start_addr = int(self.blobsTable.item(index.row(), column).text(), 16)
         UIContext.activeContext().getCurrentViewFrame().navigate(self.data, start_addr)
 
-    def handleBlobIdResults(self, results: list) -> None:
-        """Handle results from the blob extraction task"""
-
+    def _handleBlobIdResults(self, results: list) -> None:
         self.blobsTable.clearContents()
         self.running = False
         if not results:
@@ -476,7 +485,7 @@ class BlobsWidget(QWidget):
 
         self.running = True
         self.statusLabel.setText("Scanning for interesting blobs...")
-        FindBlobsTask(self.data, self.handleBlobIdResults).start()
+        FindBlobsTask(self.data, self._handleBlobIdResults).start()
 
     def updateViewData(self, data: BinaryView) -> None:
         """New binary view (tab switch or binary loaded)"""
@@ -497,7 +506,7 @@ class BlobExtractorSidebar(SidebarWidget):
         self.data = data
 
         layout = QVBoxLayout()
-        self.blobWidget = BlobsWidget(self.data)
+        self.blobWidget = BlobsWidget(self.data, parent=self)
         layout.addWidget(self.blobWidget)
         self.setLayout(layout)
 
