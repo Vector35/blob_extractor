@@ -3,6 +3,8 @@ Author: **Vector 35 Inc.**
 
 _Binary Ninja plugin for extracting files from container formats_
 
+![preview](preview.png)
+
 ## Description
 
 Blob Extractor is a Binary Ninja plugin that leverages the [Unblob API](https://github.com/onekey-sec/unblob) to
