@@ -6,7 +6,7 @@ from os import path, listdir, walk, sep
 from pathlib import Path
 from shutil import rmtree, copyfile
 from math import ceil
-from binaryninja import log_alert, get_form_input, SaveFileNameField
+from binaryninja import log_alert, get_form_input, SaveFileNameField, execute_on_main_thread
 
 from PySide6.QtCore import Qt, QModelIndex, QPoint
 from PySide6.QtWidgets import (
@@ -344,7 +344,9 @@ class ExtractResultsFrame(QFrame):
 
         self.running = True
         self.taskCompleteCallback = taskCompleteCallback
-        ExtractFilesTask(data, self._handleExtractResults).start()
+        def _handleResultsWrapper(fileReports: list, tempDir: str):
+            execute_on_main_thread(lambda: self._handleExtractResults(fileReports, tempDir))
+        ExtractFilesTask(data, _handleResultsWrapper).start()
 
 class ExtractWidget(QWidget):
     """Qt widget for extracting files with unblob"""
@@ -485,7 +487,9 @@ class BlobsWidget(QWidget):
 
         self.running = True
         self.statusLabel.setText("Scanning for interesting blobs...")
-        FindBlobsTask(self.data, self._handleBlobIdResults).start()
+        def _handleResultsWrapper(results: list):
+            execute_on_main_thread(lambda: self._handleBlobIdResults(results))
+        FindBlobsTask(self.data, _handleResultsWrapper).start()
 
     def updateViewData(self, data: BinaryView) -> None:
         """New binary view (tab switch or binary loaded)"""
