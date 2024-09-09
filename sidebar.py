@@ -464,7 +464,7 @@ class BlobsWidget(QWidget):
         if self.data.segments:
             baseaddr = self.data.segments[0].start
 
-        self.statusLabel.setText(f"Found ({len(results)}) interesting blob{("s" if len(results) > 1 else "")}")
+        self.statusLabel.setText(f"Found ({len(results)}) interesting blob{('s' if len(results) > 1 else '')}")
         self.blobsTable.setRowCount(len(results))
         extractable = False
         for i, report in enumerate(results):
