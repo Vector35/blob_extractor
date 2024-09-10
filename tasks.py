@@ -17,7 +17,7 @@ from binaryninja import log_info, log_alert, log_error, BackgroundTaskThread, Bi
 
 
 def _get_root_dir_path() -> Path:
-    dirpath = Path(path.join(gettempdir(), "blob-extractor"))
+    dirpath = Path(path.join(gettempdir(), "blob_extractor"))
     makedirs(dirpath, exist_ok=True)
     return dirpath
 

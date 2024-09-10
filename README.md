@@ -37,7 +37,7 @@ pip3 install unblob python-magic
 3. Clone the repository into the Binary Ninja `plugins` directory
 
 ```
-git clone git@github.com:Vector35/blob-extractor.git "/Users/$USER/Library/Application Support/Binary Ninja/plugins/blob-extractor"
+git clone git@github.com:Vector35/blob_extractor.git "/Users/$USER/Library/Application Support/Binary Ninja/plugins/blob_extractor"
 ```
 
 ### Linux
@@ -57,7 +57,7 @@ pip3 install unblob python-magic
 3. Clone the repository into the Binary Ninja `plugins` directory
 
 ```
-git clone git@github.com:Vector35/blob-extractor.git "~/.binaryninja/plugins/blob-extractor"
+git clone git@github.com:Vector35/blob_extractor.git "~/.binaryninja/plugins/blob_extractor"
 ```
 
 ### Windows
