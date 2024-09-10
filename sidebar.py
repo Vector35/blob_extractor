@@ -6,7 +6,7 @@ from os import path, listdir, walk, sep
 from pathlib import Path
 from shutil import rmtree, copyfile
 from math import ceil
-from binaryninja import log_alert, get_form_input, SaveFileNameField, execute_on_main_thread
+from binaryninja import log_alert, get_form_input, SaveFileNameField, execute_on_main_thread, show_message_box
 
 from PySide6.QtCore import Qt, QModelIndex, QPoint
 from PySide6.QtWidgets import (
@@ -212,7 +212,7 @@ class ExtractResultsFrame(QFrame):
             log_alert("No files selected for import")
             return
 
-        log_alert(f"({imported}) new files imported; ({skipped}) files previously imported")
+        show_message_box("Imported Files", f"({imported}) new files imported; ({skipped}) files previously imported")
         self.filesTree.clearSelection()
 
     def _getFullPathFromIndex(self, index: QModelIndex) -> str:
@@ -248,7 +248,7 @@ class ExtractResultsFrame(QFrame):
 
         outpath = outpathField.result
         copyfile(filepath, outpath)
-        log_alert(f"File saved to: {outpath}")
+        show_message_box("File Saved", f"File saved to: {outpath}")
 
     def _openContainingFolder(self, index: QModelIndex) -> None:
         filepath = self._getFullPathFromIndex(index)
@@ -438,7 +438,7 @@ class BlobsWidget(QWidget):
         with open(outpath, "wb") as f:
             f.write(data)
 
-        log_alert(f"Blob saved to: {outpath}")
+        show_message_box("Blob Saved", f"Blob saved to: {outpath}")
 
     def _contextMenu(self, pos: QPoint) -> None:
         menu = QMenu()
