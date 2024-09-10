@@ -85,8 +85,30 @@ The following executables found installed, which are needed by unblob:
     ubireader_extract_files     ✓
 ```
 
-Missing extractor utilities must be installed manually. Blob Extractor will still run without external extractor
-utilities. However, it will be unable to extract certain blob formats.
+_Note: unblob is installed at `~/.local/bin/unblob` on Linux._
+
+Missing extractor utilities must be installed manually. Linux users can install the majority of the external
+dependencies using `apt`. MacOS users can use `brew`. Some of the external dependencies, such as `sasquatch`, must be
+built from source. Blob Extractor will still run without external extractor utilities. However, it will be unable to
+extract certain blob formats. See the [Install Extractors](https://unblob.org/installation/#install-extractors) section
+from the Unblob documentation for more information.
+
+## Troubleshooting
+
+**The plugin icon is not appearing in the Binary Ninja sidebar**
+
+This is most likely because the plugin dependencies have not been installed properly and the plugin failed to load. It
+is recommended to open the Binary Ninja log and see if there is a Python traceback originating from Blob Extractor. The
+traceback should indicate what the issue is. If you are unable to run `unblob` from the command-line, it likely won't
+run from the plugin either. Be sure to follow the installation steps above and verify that `unblob` and its dependencies
+are installed correctly by running `unblob --show-external-dependencies` from your terminal.
+
+**The plugin is not extracting any files, or extracted files are empty**
+
+This is most likely because the required external dependencies for Unblob have not been installed. For example, if
+you're extracting a flash dump that contains a squash file system, you must have sasquatch installed on your system. For
+JFFS2 you need jefferson, and so on. See the `Extractor Utilities` section above. Also reference the
+[Install Extractors](https://unblob.org/installation/#install-extractors) section from the Unblob documentation.
 
 ## License
 
