@@ -473,7 +473,7 @@ class BlobsWidget(QWidget):
             self.blobsTable.setItem(i, 2, TextTableItem(getMonospaceFont(self), report.handler_name))
             self.blobsTable.setItem(i, 3, TextTableItem(getMonospaceFont(self), "Yes" if report.is_encrypted else "No"))
 
-            if (report.handler_name != "elf32" and report.start_offset != 0) and report.handler_name == "padding":
+            if not (report.handler_name == "elf32" and report.start_offset == 0) and not report.handler_name == "padding":
                 extractable = True
 
         if extractable:
