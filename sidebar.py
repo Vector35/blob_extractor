@@ -274,7 +274,7 @@ class ExtractResultsFrame(QFrame):
         parentItem = TextTreeItem(getMonospaceFont(self), parentName)
         parentItem.setSelectable(False)
         parents[_path] = parentItem
-        if path.isdir(_path) and list(x for x in Path(_path).iterdir() if x.is_file()):  # skip empty directories
+        if path.isdir(_path) and list(x for x in Path(_path).iterdir()):  # skip empty directories
             dirItem = TextTreeItem(getMonospaceFont(self), "directory")
             dirItem.setSelectable(False)
             blankItem = QStandardItem("")
@@ -313,15 +313,14 @@ class ExtractResultsFrame(QFrame):
         self.filesTreeModel.insertColumns(0, 3, addedRoot)
         self.filesTree.setRootIndex(addedRoot)
 
-         # Populate the tree with information on the extracted files
+        # Populate the tree with information on the extracted files
         for root, _, files in walk(extractDir):
             parent = self._getParentItem(root, parents)
             for _file in files:
                 fullpath = path.realpath(path.join(root, _file))
                 reports = self.fileReports.get(fullpath)
-                if not reports:
+                if reports is None:
                     continue
-
                 sr, fmr, _, _ = reports
                 name = TextTreeItem(getMonospaceFont(self), _file, color=True)
                 magic = TextTreeItem(getMonospaceFont(self), fmr.magic)
