@@ -19,6 +19,10 @@ The following dependencies are required by this plugin:
 * libmagic - Native libmagic file type identification library
 * [python-magic](https://github.com/ahupp/python-magic) - Python bindings for libmagic
 
+If the plugin is installed from the Binary Ninja plugin manager, the Python dependencies should install
+automatically. However, the `libmagic` native library must be installed manually. The instructions below provide
+guidance on how to install the plugin and its dependencies manually. Step 1 is required for all installation methods.
+
 ### Darwin
 
 1. Install the `libmagic` native library
@@ -27,17 +31,18 @@ The following dependencies are required by this plugin:
 brew install libmagic
 ```
 
-2. Install the dependency Python packages for the Python version in use by Binary Ninja. If you are using your system's
-Python interpeter, these packages can be installed using PIP.
-
-```
-pip3 install unblob python-magic
-```
-
-3. Clone the repository into the Binary Ninja `plugins` directory
+2. Clone the repository into the Binary Ninja `plugins` directory (or install from the Binary Ninja plugin manager)
 
 ```
 git clone git@github.com:Vector35/blob_extractor.git "/Users/$USER/Library/Application Support/Binary Ninja/plugins/blob_extractor"
+```
+
+3. Install the dependency Python packages for the Python version in use by Binary Ninja. These packages should be
+installed from the `requirements.txt` file, included in the plugin repository.
+
+```
+cd "/Users/$USER/Library/Application Support/Binary Ninja/plugins/blob_extractor"
+pip3 install -r requirements.txt
 ```
 
 ### Linux
@@ -48,16 +53,18 @@ git clone git@github.com:Vector35/blob_extractor.git "/Users/$USER/Library/Appli
 sudo apt-get install libmagic1
 ```
 
-2. Install the dependency Python packages for the Python version in use by Binary Ninja.
+2. Clone the repository into the Binary Ninja `plugins` directory (or install from the Binary Ninja plugin manager)
 
 ```
-pip3 install unblob python-magic
+git clone git@github.com:Vector35/blob_extractor.git ~/.binaryninja/plugins/blob_extractor
 ```
 
-3. Clone the repository into the Binary Ninja `plugins` directory
+3. Install the dependency Python packages for the Python version in use by Binary Ninja. These packages should be
+installed from the `requirements.txt` file, included in the plugin repository.
 
 ```
-git clone git@github.com:Vector35/blob_extractor.git "~/.binaryninja/plugins/blob_extractor"
+cd ~/.binaryninja/plugins/blob_extractor
+pip3 install -r requirements.txt
 ```
 
 ### Windows

@@ -62,7 +62,7 @@ def _extract_from_file(filepath: str, outdir: str, scan_only: bool = False) -> l
     configure_logger(0, Path(outdir), log_path)
     config = ExtractionConfig(
         extract_root=Path(outdir),
-        entropy_depth=1,
+        randomness_depth=1,
         verbose=0,
     )
 
