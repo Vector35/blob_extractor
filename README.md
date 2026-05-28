@@ -75,7 +75,7 @@ These dependencies do not run on Windows.
 ## Extractor Utilities
 
 Unblob uses external utilities for file extraction. After installing Unblob (via the installation instructions above)
-run the following command to identify missing external extractor utilties:
+run the following command to identify missing external extractor utilities:
 
 ```
 > unblob --show-external-dependencies
