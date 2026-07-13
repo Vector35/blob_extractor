@@ -3,13 +3,15 @@ Author: **Vector 35 Inc.**
 
 _Binary Ninja plugin for extracting files from container formats_
 
-![preview](preview.png)
+<img src="https://raw.githubusercontent.com/Vector35/blob_extractor/master/preview.png" />
+
 
 ## Description
 
 Blob Extractor is a Binary Ninja plugin that leverages the [Unblob API](https://github.com/onekey-sec/unblob) to
 identify and extract compressed archives, file-systems, and other blobs embedded in container binaries such as flash
-dumps or firmware images.
+dumps or firmware images. <br><br>
+
 
 ## Installation Instructions
 
@@ -21,7 +23,9 @@ The following dependencies are required by this plugin:
 
 If the plugin is installed from the Binary Ninja plugin manager, the Python dependencies should install
 automatically. However, the `libmagic` native library must be installed manually. The instructions below provide
-guidance on how to install the plugin and its dependencies manually. Step 1 is required for all installation methods.
+guidance on how to install the plugin and its dependencies manually. Step 1 is required for all installation methods.  
+
+
 
 ### Darwin
 
@@ -43,7 +47,8 @@ installed from the `requirements.txt` file, included in the plugin repository.
 ```
 cd "/Users/$USER/Library/Application Support/Binary Ninja/plugins/blob_extractor"
 pip3 install -r requirements.txt
-```
+``` 
+
 
 ### Linux
 
@@ -65,12 +70,15 @@ installed from the `requirements.txt` file, included in the plugin repository.
 ```
 cd ~/.binaryninja/plugins/blob_extractor
 pip3 install -r requirements.txt
-```
+```  
+
+
 
 ### Windows
 
 Windows is not supported by this plugin. Blob Extractor depends on `libmagic`, Unblob, and Unblob's extractor utilities.
-These dependencies do not run on Windows.
+These dependencies do not run on Windows. <br><br>
+
 
 ## Extractor Utilities
 
@@ -98,7 +106,8 @@ Missing extractor utilities must be installed manually. Linux users can install 
 dependencies using `apt`. MacOS users can use `brew`. Some of the external dependencies, such as `sasquatch`, must be
 built from source. Blob Extractor will still run without external extractor utilities. However, it will be unable to
 extract certain blob formats. See the [Install Extractors](https://unblob.org/installation/#install-extractors) section
-from the Unblob documentation for more information.
+from the Unblob documentation for more information. <br><br>
+
 
 ## Troubleshooting
 
@@ -116,6 +125,8 @@ This is most likely because the required external dependencies for Unblob have n
 you're extracting a flash dump that contains a squash file system, you must have sasquatch installed on your system. For
 JFFS2 you need jefferson, and so on. See the `Extractor Utilities` section above. Also reference the
 [Install Extractors](https://unblob.org/installation/#install-extractors) section from the Unblob documentation.
+<br><br>
+
 
 ## License
 
