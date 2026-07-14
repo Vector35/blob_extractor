@@ -3,7 +3,7 @@ Author: **Vector 35 Inc.**
 
 _Binary Ninja plugin for extracting files from container formats_
 
-![](https://github.com/Vector35/blob_extractor/blob/master/preview.png?raw=true)
+![](https://raw.githubusercontent.com/Vector35/blob_extractor/master/preview.png)
 
 
 ## Description
